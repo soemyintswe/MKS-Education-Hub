@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "27xQgko9fAulw32o1rokk"
+uri = "file://artifacts/mks-education/assets/images/icon.png"
+type = "image"
+title = "MKS education app icon"

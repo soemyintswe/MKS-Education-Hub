@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "MKS Education & Legal Service Management System"
+version = "1.0.0"
+id = "artifacts/mks-education"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19291
+
+[services.development]
+run = "pnpm --filter @workspace/mks-education run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mks-education", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/mks-education", "run", "serve" ]
+
+[services.env]
+PORT = "19291"
+BASE_PATH = "/"
