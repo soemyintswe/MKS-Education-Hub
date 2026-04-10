@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && userDoc().data.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole("admin");
+    }
+
+    function isAgent() {
+      return hasRole("agent");
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isLinkedAgentResource() {
+      return isAgent() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.agentId == request.auth.uid
+      );
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /registrationRequests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /passwordResetRequests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /usernameIndex/{username} {
+      // Login flow needs username -> email lookup before authentication.
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        username == request.resource.data.usernameNormalized &&
+        request.resource.data.uid == request.auth.uid
+      );
+
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        username == request.resource.data.usernameNormalized &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid
+      );
+
+      allow delete: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.uid == request.auth.uid
+      );
+    }
+
+    match /students/{studentId} {
+      allow create: if isAdmin() || (
+        isAgent() &&
+        request.resource.data.createdBy == request.auth.uid
+      );
+      allow read: if isAdmin() || isLinkedAgentResource() || (
+        isSignedIn() &&
+        resource.data.linkedUserId == request.auth.uid
+      );
+      allow update: if isAdmin() || isLinkedAgentResource();
+      allow delete: if isAdmin();
+    }
+
+    match /agents/{agentId} {
+      allow create: if isAdmin();
+      allow read: if isAdmin() || (
+        isAgent() &&
+        resource.data.userId == request.auth.uid
+      );
+      allow update: if isAdmin() || (
+        isAgent() &&
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}
