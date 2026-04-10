@@ -9,7 +9,6 @@
     "public": "artifacts/mks-education/dist",
     "ignore": [
       "firebase.json",
-      "**/.*",
       "**/node_modules/**"
     ],
     "rewrites": [
