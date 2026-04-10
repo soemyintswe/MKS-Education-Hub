@@ -8,8 +8,7 @@
   "hosting": {
     "public": "artifacts/mks-education/dist",
     "ignore": [
-      "firebase.json",
-      "**/node_modules/**"
+      "firebase.json"
     ],
     "rewrites": [
       {
