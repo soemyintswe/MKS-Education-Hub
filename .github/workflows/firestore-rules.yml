@@ -1,0 +1,53 @@
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - firestore.rules
+      - firebase.json
+      - .github/workflows/firestore-rules.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_firestore_rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Firebase service account secret
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB" ]; then
+            echo "Missing required secret: FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB"
+            exit 1
+          fi
+        env:
+          FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB }}
+
+      - name: Write service account file
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB }}' > "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy Firestore rules
+        run: pnpm dlx firebase-tools deploy --only firestore:rules --project mks-education-hub --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json

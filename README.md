@@ -38,3 +38,48 @@ artifacts/
 lib/
  ├── api-zod/                 # API Schemas and Validation
  └── db/                      # Database Models and Logic
+```
+
+## Firebase Hosting (Web)
+
+This repo is configured to host the Expo web build on Firebase Hosting.
+
+### Local web build
+
+```bash
+pnpm --filter @workspace/mks-education run build:web
+```
+
+Build output will be generated at `artifacts/mks-education/dist`.
+
+### Local deploy (manual)
+
+```bash
+pnpm dlx firebase-tools deploy --only hosting --project mks-education-hub
+```
+
+### Auto deploy with GitHub Actions
+
+Workflow file: `.github/workflows/firebase-hosting.yml`
+Firestore rules workflow: `.github/workflows/firestore-rules.yml`
+
+Set these repository secrets in GitHub:
+
+1. `FIREBASE_SERVICE_ACCOUNT_MKS_EDUCATION_HUB`
+2. `EXPO_PUBLIC_FIREBASE_API_KEY`
+3. `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+4. `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+5. `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+6. `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+7. `EXPO_PUBLIC_FIREBASE_APP_ID`
+
+Behavior:
+
+1. `push` to `main`: builds web and deploys to live hosting
+2. `pull_request`: builds web and deploys to preview channel
+3. `workflow_dispatch`: manual run from GitHub Actions
+
+Firestore rules behavior:
+
+1. `firestore.rules` (or `firebase.json`) changed on `main` -> auto deploy Firestore rules
+2. `workflow_dispatch` -> manual Firestore rules deploy
