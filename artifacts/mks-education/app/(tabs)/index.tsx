@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   Platform,
+  Pressable,
+  Modal,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -16,38 +18,429 @@ import { useApp } from "@/context/AppContext";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { RoleSwitcher } from "@/components/RoleSwitcher";
-import { SAMPLE_ORDERS, NOTIFICATIONS, SERVICES, PAYMENT_RECORDS } from "@/data/mockData";
-import { SPACING, FONT_SIZE, SHADOW } from "@/constants/theme";
+import { SAMPLE_ORDERS, SERVICES, PAYMENT_RECORDS, UNIVERSITIES } from "@/data/mockData";
+import { SHADOW } from "@/constants/theme";
+import { getScopedOrders, getScopedPayments } from "@/lib/roleScope";
+import { useI18n } from "@/hooks/useI18n";
+import {
+  translateNotificationMessage,
+  translateNotificationTitle,
+  translateServiceTitle,
+} from "@/lib/i18n";
+
+type NewsItem = {
+  id: string;
+  titleEn: string;
+  titleMy: string;
+  summaryEn: string;
+  summaryMy: string;
+  date: string;
+  categoryEn: string;
+  categoryMy: string;
+};
+
+const NEWS_ITEMS: NewsItem[] = [
+  {
+    id: "news001",
+    titleEn: "2026 University Admission Window Opened",
+    titleMy: "2026 တက္ကသိုလ်ဝင်ခွင့် လျှောက်လွှာကာလ ဖွင့်လှစ်",
+    summaryEn: "MKS now accepts new admission service requests for local and international universities.",
+    summaryMy: "ပြည်တွင်းနှင့် ပြည်ပ တက္ကသိုလ်ဝင်ခွင့် ဝန်ဆောင်မှုများကို MKS မှ လက်ခံဆောင်ရွက်နေပါသည်။",
+    date: "2026-05-01",
+    categoryEn: "Admissions",
+    categoryMy: "ဝင်ခွင့်",
+  },
+  {
+    id: "news002",
+    titleEn: "Document Legalization Fast-Track Added",
+    titleMy: "စာရွက်စာတမ်းအတည်ပြု Fast-Track ဝန်ဆောင်မှု ထပ်တိုး",
+    summaryEn: "Urgent legalization and notary requests can now be processed with priority handling.",
+    summaryMy: "အရေးပေါ် Notary နှင့် Legalization လုပ်ငန်းများကို အမြန်ဦးစားပေးစနစ်ဖြင့် ဆောင်ရွက်ပေးနေပါသည်။",
+    date: "2026-04-26",
+    categoryEn: "Legal",
+    categoryMy: "ဥပဒေဝန်ဆောင်မှု",
+  },
+  {
+    id: "news003",
+    titleEn: "Agent Onboarding Program Launch",
+    titleMy: "Agent Onboarding Program စတင်ဖွင့်လှစ်",
+    summaryEn: "Partner schools and education agents can now onboard and manage bulk student requests.",
+    summaryMy: "ပူးပေါင်းကျောင်းများနှင့် အေးဂျင့်များအတွက် ကျောင်းသားအစုလိုက်အပြုံလိုက် တင်ပြစနစ်ကို စတင်အသုံးပြုနိုင်ပါပြီ။",
+    date: "2026-04-18",
+    categoryEn: "Partners",
+    categoryMy: "ပူးပေါင်းရေး",
+  },
+];
+
+function textByLang(language: "en" | "my", enText: string, myText: string) {
+  return language === "my" ? myText : enText;
+}
+
+function formatMMK(amount: number) {
+  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
+  return amount.toLocaleString();
+}
 
 export default function HomeScreen() {
   const colors = useColors();
-  const { user, activeRole } = useApp();
+  const { t, language } = useI18n();
+  const {
+    user,
+    activeRole,
+    notifications,
+    unreadNotificationCount,
+    logout,
+    toggleLanguage,
+  } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : 0;
 
-  const activeOrders = SAMPLE_ORDERS.filter(o => o.status === "in_progress" || o.status === "pending");
-  const unreadNotifs = NOTIFICATIONS.filter(n => !n.read).length;
-  const totalPaid = PAYMENT_RECORDS.filter(p => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const pendingPay = PAYMENT_RECORDS.filter(p => p.status === "pending" || p.status === "overdue").reduce((s, p) => s + p.amount, 0);
+  const scopedOrders = useMemo(
+    () => getScopedOrders(SAMPLE_ORDERS, user, activeRole),
+    [user, activeRole]
+  );
+  const scopedPayments = useMemo(
+    () => getScopedPayments(PAYMENT_RECORDS, scopedOrders, activeRole),
+    [scopedOrders, activeRole]
+  );
 
-  const quickServices = SERVICES.slice(0, 6);
+  const activeOrders = scopedOrders.filter(o => o.status === "in_progress" || o.status === "pending");
+  const totalPaid = scopedPayments.filter(p => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const pendingPay = scopedPayments
+    .filter(p => p.status === "pending" || p.status === "overdue")
+    .reduce((s, p) => s + p.amount, 0);
 
-  const roleLabel = activeRole === "student" ? "Student" : activeRole === "agent" ? "Partner Agent" : "Administrator";
+  const roleLabel =
+    activeRole === "student" ? t("roleStudent") : activeRole === "agent" ? t("roleAgent") : t("roleAdmin");
+
   const greeting = () => {
     const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
+    if (h < 12) return t("goodMorning");
+    if (h < 17) return t("goodAfternoon");
+    return t("goodEvening");
   };
+
+  const menuEntries = user
+    ? [
+        {
+          key: "profile",
+          icon: "user",
+          label: textByLang(language, "Profile", "ပရိုဖိုင်"),
+          onPress: async () => router.push("/profile"),
+        },
+        {
+          key: "orders",
+          icon: "clipboard",
+          label: textByLang(language, "My Orders", "ကျွန်ုပ်၏အော်ဒါများ"),
+          onPress: async () => router.push("/(tabs)/orders"),
+        },
+        {
+          key: "students",
+          icon: "users",
+          label: textByLang(language, "Students", "ကျောင်းသားများ"),
+          onPress: async () => router.push("/students"),
+        },
+        {
+          key: "logout",
+          icon: "log-out",
+          label: loggingOut
+            ? textByLang(language, "Logging out...", "ထွက်နေသည်...")
+            : textByLang(language, "Logout", "အကောင့်ထွက်ရန်"),
+          onPress: async () => {
+            try {
+              setLoggingOut(true);
+              await logout();
+              router.replace("/");
+            } catch {
+              Alert.alert(
+                textByLang(language, "Error", "အမှား"),
+                textByLang(language, "Unable to logout. Please try again.", "Logout မအောင်မြင်ပါ။ ထပ်မံကြိုးစားပါ။")
+              );
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    : [
+        {
+          key: "services",
+          icon: "grid",
+          label: textByLang(language, "Services", "ဝန်ဆောင်မှုများ"),
+          onPress: async () => router.push("/(tabs)/services"),
+        },
+        {
+          key: "directory",
+          icon: "book-open",
+          label: textByLang(language, "Education Directory", "ပညာရေးလမ်းညွှန်"),
+          onPress: async () => router.push("/(tabs)/directory"),
+        },
+        {
+          key: "login",
+          icon: "log-in",
+          label: textByLang(language, "Login", "လော့ဂ်အင်"),
+          onPress: async () => router.push("/login"),
+        },
+        {
+          key: "register",
+          icon: "user-plus",
+          label: textByLang(language, "Register", "စာရင်းသွင်းရန်"),
+          onPress: async () => router.push("/register"),
+        },
+      ];
+
+  const renderCommonPublicSections = (showSharedCard: boolean) => {
+    const publicServices = SERVICES.slice(0, 6);
+    const previewSchools = UNIVERSITIES.slice(0, 4);
+
+    return (
+      <>
+        <View style={styles.section}>
+          <SectionHeader title={textByLang(language, "About MKS", "MKS အကြောင်း")} icon="info" />
+          <Card variant="elevated" style={styles.aboutCard}>
+            <Text style={[styles.aboutTitle, { color: colors.foreground }]}>
+              {textByLang(language, "MKS Education & Legal Service", "MKS ပညာရေးနှင့် ဥပဒေဝန်ဆောင်မှုလုပ်ငန်း")}
+            </Text>
+            <Text style={[styles.aboutBody, { color: colors.mutedForeground }]}>
+              {textByLang(
+                language,
+                "We support students, partner agents, and families with admission, academic documentation, legal translation, and service tracking workflows.",
+                "ကျောင်းသားများ၊ ပူးပေါင်းအေးဂျင့်များနှင့် မိဘအုပ်ထိန်းသူများအတွက် ဝင်ခွင့်၊ ပညာရေးစာရွက်စာတမ်း၊ ဥပဒေဘာသာပြန်နှင့် လုပ်ငန်းဆောင်ရွက်မှုအခြေအနေများကို တစ်နေရာတည်းမှာ စီမံနိုင်အောင် ကူညီပေးပါသည်။"
+              )}
+            </Text>
+            <View style={styles.aboutHighlights}>
+              {[
+                {
+                  icon: "check-circle",
+                  textEn: "University/College admissions and transfers",
+                  textMy: "တက္ကသိုလ်/ကောလိပ် ဝင်ခွင့်နှင့် ပြောင်းရွှေ့ဝန်ဆောင်မှု",
+                },
+                {
+                  icon: "check-circle",
+                  textEn: "Certificate, transcript, and legal document services",
+                  textMy: "အောင်လက်မှတ်၊ transcript နှင့် ဥပဒေစာရွက်စာတမ်း ဝန်ဆောင်မှု",
+                },
+                {
+                  icon: "check-circle",
+                  textEn: "End-to-end order tracking and notifications",
+                  textMy: "လုပ်ငန်းအဆင့်လိုက် tracking နှင့် အသိပေးချက်စနစ်",
+                },
+              ].map(item => (
+                <View key={item.textEn} style={styles.aboutHighlightRow}>
+                  <Feather name={item.icon as any} size={16} color={colors.primary} />
+                  <Text style={[styles.aboutHighlightText, { color: colors.foreground }]}>
+                    {textByLang(language, item.textEn, item.textMy)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader
+            title={textByLang(language, "Featured Services", "ရရှိနိုင်သည့် ဝန်ဆောင်မှုများ")}
+            icon="layers"
+            onSeeAll={() => router.push("/(tabs)/services")}
+          />
+          <View style={styles.servicesGrid}>
+            {publicServices.map(svc => (
+              <TouchableOpacity
+                key={svc.id}
+                style={[styles.serviceCard, { backgroundColor: colors.card, ...SHADOW.sm }]}
+                onPress={() => router.push({ pathname: "/service-detail", params: { id: svc.id } })}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.svcIcon, { backgroundColor: svc.color + "20" }]}>
+                  <Feather name={svc.icon as any} size={22} color={svc.color} />
+                </View>
+                <Text style={[styles.svcTitle, { color: colors.foreground }]} numberOfLines={2}>
+                  {translateServiceTitle(language, svc.id, svc.title)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader title={textByLang(language, "Latest News", "နောက်ဆုံးရသတင်းများ")} icon="radio" />
+          {NEWS_ITEMS.map(news => (
+            <Card key={news.id} variant="elevated" style={styles.newsCard}>
+              <View style={styles.newsTop}>
+                <Badge
+                  label={language === "my" ? news.categoryMy : news.categoryEn}
+                  variant="info"
+                  size="sm"
+                />
+                <Text style={[styles.newsDate, { color: colors.mutedForeground }]}>{news.date}</Text>
+              </View>
+              <Text style={[styles.newsTitle, { color: colors.foreground }]}>
+                {language === "my" ? news.titleMy : news.titleEn}
+              </Text>
+              <Text style={[styles.newsSummary, { color: colors.mutedForeground }]}>
+                {language === "my" ? news.summaryMy : news.summaryEn}
+              </Text>
+            </Card>
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader
+            title={textByLang(language, "Education Directory", "Education Directory")}
+            icon="book-open"
+            onSeeAll={() => router.push("/(tabs)/directory")}
+          />
+          <View style={styles.directoryGrid}>
+            {previewSchools.map(school => (
+              <TouchableOpacity
+                key={school.id}
+                style={[styles.directoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push({ pathname: "/university-detail", params: { id: school.id } })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.directoryEmoji}>{school.logo ?? "🏫"}</Text>
+                <Text style={[styles.directoryName, { color: colors.foreground }]} numberOfLines={2}>
+                  {school.name}
+                </Text>
+                <Text style={[styles.directoryMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {school.location}, {school.country}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {showSharedCard ? (
+          <View style={styles.section}>
+            <Card variant="outlined" style={styles.sharedInfoCard}>
+              <Text style={[styles.sharedInfoTitle, { color: colors.foreground }]}>
+                {textByLang(language, "Public Information Area", "လူတိုင်းကြည့်နိုင်သော အချက်အလက်များ")}
+              </Text>
+              <Text style={[styles.sharedInfoText, { color: colors.mutedForeground }]}>
+                {textByLang(
+                  language,
+                  "This information is visible to Admin, Agent, and Student users, and also to guests before login.",
+                  "ဤအချက်အလက်များကို Admin / Agent / Student အားလုံးနှင့် Guest အသုံးပြုသူများလည်း Login မဝင်ခင် ကြည့်ရှုနိုင်ပါသည်။"
+                )}
+              </Text>
+            </Card>
+          </View>
+        ) : null}
+      </>
+    );
+  };
+
+  if (!user) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingTop: topPad + 8, paddingBottom: bottomPad + 60 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.landingHero, { backgroundColor: colors.primary }]}>
+            <View style={styles.heroTopRow}>
+              <View style={styles.headerLeft}>
+                <View style={[styles.logoBadge, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.logoText}>MKS</Text>
+                </View>
+                <View>
+                  <Text style={styles.headerGreeting}>{textByLang(language, "Welcome to", "ကြိုဆိုပါတယ်")}</Text>
+                  <Text style={styles.headerName}>{textByLang(language, "MKS Education Hub", "MKS Education Hub")}</Text>
+                </View>
+              </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity style={styles.headerBtn} onPress={toggleLanguage}>
+                  <Feather name="globe" size={18} color="#fff" />
+                  <Text style={styles.langText}>{language === "en" ? "EN" : "MM"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/login")}>
+                  <Feather name="log-in" size={18} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/register")}>
+                  <Feather name="user-plus" size={18} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.headerBtn} onPress={() => setMenuVisible(true)}>
+                  <Feather name="menu" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.heroTitle}>
+              {textByLang(language, "Your Trusted Education & Legal Partner", "ပညာရေးနှင့် ဥပဒေဝန်ဆောင်မှု ယုံကြည်ရသော မိတ်ဖက်")}
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              {textByLang(
+                language,
+                "Apply, track, and manage education services in one place.",
+                "ပညာရေးဝန်ဆောင်မှု လုပ်ငန်းများကို တစ်နေရာတည်းတွင် လျှောက်ထား၊ စောင့်ကြည့်၊ စီမံနိုင်ပါသည်။"
+              )}
+            </Text>
+
+            <View style={styles.heroActionRow}>
+              <TouchableOpacity
+                style={[styles.heroActionBtn, { backgroundColor: colors.secondary }]}
+                onPress={() => router.push("/login")}
+              >
+                <Feather name="log-in" size={16} color="#0f2027" />
+                <Text style={[styles.heroActionText, { color: "#0f2027" }]}>{t("login")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.heroActionBtn,
+                  {
+                    backgroundColor: "rgba(255,255,255,0.16)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.4)",
+                  },
+                ]}
+                onPress={() => router.push("/register")}
+              >
+                <Feather name="user-plus" size={16} color="#fff" />
+                <Text style={[styles.heroActionText, { color: "#fff" }]}>{t("register")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {renderCommonPublicSections(false)}
+        </ScrollView>
+
+        <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+            <Pressable style={[styles.modalPanel, { backgroundColor: colors.card }]} onPress={() => null}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                {textByLang(language, "Menu", "မီနူး")}
+              </Text>
+              {menuEntries.map(item => (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.modalItem, { borderColor: colors.border }]}
+                  onPress={async () => {
+                    setMenuVisible(false);
+                    await item.onPress();
+                  }}
+                >
+                  <Feather name={item.icon as any} size={16} color={colors.primary} />
+                  <Text style={[styles.modalItemText, { color: colors.foreground }]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: topPad + 12 }]}>
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
@@ -60,68 +453,77 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => router.push("/notifications")}
-            >
-              <Feather name="bell" size={20} color="#fff" />
-              {unreadNotifs > 0 && (
-                <View style={[styles.notifDot, { backgroundColor: colors.secondary }]}>
-                  <Text style={styles.notifCount}>{unreadNotifs}</Text>
-                </View>
-              )}
+            <TouchableOpacity style={styles.headerBtn} onPress={toggleLanguage}>
+              <Feather name="globe" size={18} color="#fff" />
+              <Text style={styles.langText}>{language === "en" ? "EN" : "MM"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerBtn}
-              onPress={() => setShowRoleSwitcher(true)}
+              onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
             >
+              <Feather name="home" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/notifications")}>
+              <Feather name="bell" size={20} color="#fff" />
+              {unreadNotificationCount > 0 ? (
+                <View style={[styles.notifDot, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.notifCount}>{unreadNotificationCount}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/profile")}>
               <Feather name="user" size={20} color="#fff" />
             </TouchableOpacity>
+            <TouchableOpacity style={styles.headerBtn} onPress={() => setMenuVisible(true)}>
+              <Feather name="menu" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Role Badge */}
         <View style={styles.roleBadgeRow}>
           <View style={[styles.roleBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-            <Feather name={activeRole === "student" ? "book-open" : activeRole === "agent" ? "briefcase" : "shield"} size={12} color="#fff" />
+            <Feather
+              name={activeRole === "student" ? "book-open" : activeRole === "agent" ? "briefcase" : "shield"}
+              size={12}
+              color="#fff"
+            />
             <Text style={styles.roleBadgeText}>{roleLabel}</Text>
           </View>
-          {activeRole === "student" && user?.studentId && (
+          {activeRole === "student" && user?.studentId ? (
             <Text style={styles.studentId}>ID: {user.studentId}</Text>
-          )}
+          ) : null}
         </View>
 
-        {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{activeOrders.length}</Text>
-            <Text style={styles.statLabel}>Active Orders</Text>
+            <Text style={styles.statLabel}>{t("activeOrders")}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{formatMMK(totalPaid)}</Text>
-            <Text style={styles.statLabel}>Paid</Text>
+            <Text style={styles.statLabel}>{t("paid")}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, pendingPay > 0 && { color: colors.secondary }]}>
               {formatMMK(pendingPay)}
             </Text>
-            <Text style={styles.statLabel}>Pending</Text>
+            <Text style={styles.statLabel}>{t("pending")}</Text>
           </View>
         </View>
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 90 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Active Orders */}
-        {activeOrders.length > 0 && (
+        {activeOrders.length > 0 ? (
           <View style={styles.section}>
             <SectionHeader
-              title="Active Orders"
+              title={t("activeOrders")}
               icon="clock"
               onSeeAll={() => router.push("/(tabs)/orders")}
             />
@@ -134,13 +536,15 @@ export default function HomeScreen() {
                   <View style={styles.orderTop}>
                     <Text style={[styles.orderTitle, { color: colors.foreground }]}>{order.serviceTitle}</Text>
                     <Badge
-                      label={order.status === "in_progress" ? "In Progress" : "Pending"}
+                      label={order.status === "in_progress" ? t("inProgress") : t("pending")}
                       variant={order.status === "in_progress" ? "primary" : "warning"}
                       size="sm"
                     />
                   </View>
                   <Text style={[styles.orderMeta, { color: colors.mutedForeground }]}>
-                    {order.assignedAgent ? `Agent: ${order.assignedAgent}` : "Awaiting Assignment"}
+                    {order.assignedAgent
+                      ? t("agentLabel", { name: order.assignedAgent })
+                      : t("awaitingAssignment")}
                   </Text>
                   <View style={styles.progressBar}>
                     <View
@@ -154,105 +558,127 @@ export default function HomeScreen() {
                     />
                   </View>
                   <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
-                    {order.steps.filter(s => s.completed).length}/{order.steps.length} steps completed
+                    {t("stepsCompleted", {
+                      done: order.steps.filter(s => s.completed).length,
+                      total: order.steps.length,
+                    })}
                   </Text>
                 </Card>
               </TouchableOpacity>
             ))}
           </View>
-        )}
+        ) : null}
 
-        {/* Quick Services */}
         <View style={styles.section}>
           <SectionHeader
-            title="Quick Services"
+            title={t("quickServices")}
             icon="grid"
             onSeeAll={() => router.push("/(tabs)/services")}
           />
           <View style={styles.servicesGrid}>
-            {quickServices.map(svc => (
+            {SERVICES.slice(0, 6).map(svc => (
               <TouchableOpacity
                 key={svc.id}
                 style={[styles.serviceCard, { backgroundColor: colors.card, ...SHADOW.sm }]}
                 onPress={() => router.push({ pathname: "/service-detail", params: { id: svc.id } })}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <View style={[styles.svcIcon, { backgroundColor: svc.color + "20" }]}>
                   <Feather name={svc.icon as any} size={22} color={svc.color} />
                 </View>
                 <Text style={[styles.svcTitle, { color: colors.foreground }]} numberOfLines={2}>
-                  {svc.title}
+                  {translateServiceTitle(language, svc.id, svc.title)}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Recent Notifications */}
         <View style={styles.section}>
           <SectionHeader
-            title="Notifications"
+            title={t("notificationsSection")}
             icon="bell"
             onSeeAll={() => router.push("/notifications")}
           />
-          {NOTIFICATIONS.slice(0, 3).map(notif => (
+          {notifications.slice(0, 3).map(notif => (
             <Card key={notif.id} style={styles.notifCard} variant={notif.read ? "outlined" : "elevated"}>
               <View style={styles.notifRow}>
-                <View style={[styles.notifIcon, {
-                  backgroundColor: notif.type === "success" ? colors.successLight :
-                    notif.type === "warning" ? colors.warningLight :
-                    notif.type === "alert" ? "#fee2e2" : colors.infoLight
-                }]}>
+                <View
+                  style={[
+                    styles.notifIcon,
+                    {
+                      backgroundColor:
+                        notif.type === "success"
+                          ? colors.successLight
+                          : notif.type === "warning"
+                            ? colors.warningLight
+                            : notif.type === "alert"
+                              ? "#fee2e2"
+                              : colors.infoLight,
+                    },
+                  ]}
+                >
                   <Feather
                     name={notif.icon as any}
                     size={16}
-                    color={notif.type === "success" ? colors.success :
-                      notif.type === "warning" ? colors.warning :
-                      notif.type === "alert" ? colors.destructive : colors.info}
+                    color={
+                      notif.type === "success"
+                        ? colors.success
+                        : notif.type === "warning"
+                          ? colors.warning
+                          : notif.type === "alert"
+                            ? colors.destructive
+                            : colors.info
+                    }
                   />
                 </View>
                 <View style={styles.notifContent}>
                   <View style={styles.notifTitleRow}>
-                    <Text style={[styles.notifTitle, { color: colors.foreground }]}>{notif.title}</Text>
-                    {!notif.read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+                    <Text style={[styles.notifTitle, { color: colors.foreground }]}>
+                      {translateNotificationTitle(language, notif.id, notif.title)}
+                    </Text>
+                    {!notif.read ? <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} /> : null}
                   </View>
                   <Text style={[styles.notifMessage, { color: colors.mutedForeground }]} numberOfLines={2}>
-                    {notif.message}
+                    {translateNotificationMessage(language, notif.id, notif.message)}
                   </Text>
                   <Text style={[styles.notifTime, { color: colors.mutedForeground }]}>{notif.time}</Text>
                 </View>
               </View>
             </Card>
           ))}
+          {notifications.length === 0 ? (
+            <Card style={styles.notifCard} variant="outlined">
+              <Text style={[styles.notifMessage, { color: colors.mutedForeground }]}>{t("noNotifications")}</Text>
+            </Card>
+          ) : null}
         </View>
 
-        {/* Finance Summary */}
         <View style={styles.section}>
-          <SectionHeader title="Financial Summary" icon="credit-card" onSeeAll={() => router.push("/financials")} />
+          <SectionHeader title={t("financialSummary")} icon="credit-card" onSeeAll={() => router.push("/financials")} />
           <Card variant="primary" style={styles.financeCard}>
-            <Text style={styles.financeLabel}>Total Amount Paid</Text>
+            <Text style={styles.financeLabel}>{t("totalAmountPaid")}</Text>
             <Text style={styles.financeAmount}>{totalPaid.toLocaleString()} MMK</Text>
-            {pendingPay > 0 && (
+            {pendingPay > 0 ? (
               <View style={[styles.pendingPill, { backgroundColor: "rgba(251,191,36,0.25)" }]}>
                 <Feather name="alert-circle" size={14} color={colors.secondary} />
                 <Text style={[styles.pendingText, { color: colors.secondary }]}>
-                  {pendingPay.toLocaleString()} MMK outstanding
+                  {t("outstanding", { amount: pendingPay.toLocaleString() })}
                 </Text>
               </View>
-            )}
+            ) : null}
           </Card>
         </View>
 
-        {/* Admin-only Stats */}
-        {activeRole === "admin" && (
+        {activeRole === "admin" ? (
           <View style={styles.section}>
-            <SectionHeader title="System Overview" icon="activity" />
+            <SectionHeader title={t("systemOverview")} icon="activity" />
             <View style={styles.adminGrid}>
               {[
-                { label: "Total Students", value: "1,248", icon: "users", color: colors.primary },
-                { label: "Active Agents", value: "24", icon: "briefcase", color: "#8b5cf6" },
-                { label: "Orders Today", value: "37", icon: "clipboard", color: colors.warning },
-                { label: "Revenue (Apr)", value: "12.4M", icon: "trending-up", color: colors.success },
+                { label: t("totalStudents"), value: "1,248", icon: "users", color: colors.primary },
+                { label: t("activeAgents"), value: "24", icon: "briefcase", color: "#8b5cf6" },
+                { label: t("ordersToday"), value: "37", icon: "clipboard", color: colors.warning },
+                { label: t("revenueApr"), value: "12.4M", icon: "trending-up", color: colors.success },
               ].map(stat => (
                 <Card key={stat.label} style={styles.adminStatCard} variant="elevated">
                   <View style={[styles.adminStatIcon, { backgroundColor: stat.color + "15" }]}>
@@ -264,31 +690,35 @@ export default function HomeScreen() {
               ))}
             </View>
           </View>
-        )}
+        ) : null}
+
+        {renderCommonPublicSections(true)}
       </ScrollView>
 
-      {/* Role Switcher Modal */}
-      <Modal visible={showRoleSwitcher} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <RoleSwitcher onClose={() => setShowRoleSwitcher(false)} />
-            <TouchableOpacity
-              style={[styles.modalClose, { backgroundColor: colors.muted }]}
-              onPress={() => setShowRoleSwitcher(false)}
-            >
-              <Text style={[styles.modalCloseText, { color: colors.mutedForeground }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+          <Pressable style={[styles.modalPanel, { backgroundColor: colors.card }]} onPress={() => null}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {textByLang(language, "Menu", "မီနူး")}
+            </Text>
+            {menuEntries.map(item => (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.modalItem, { borderColor: colors.border }]}
+                onPress={async () => {
+                  setMenuVisible(false);
+                  await item.onPress();
+                }}
+              >
+                <Feather name={item.icon as any} size={16} color={colors.primary} />
+                <Text style={[styles.modalItemText, { color: colors.foreground }]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
-}
-
-function formatMMK(amount: number) {
-  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
-  if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
-  return amount.toLocaleString();
 }
 
 const styles = StyleSheet.create({
@@ -296,6 +726,50 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  landingHero: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    marginBottom: 14,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontSize: 24,
+    lineHeight: 31,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  heroActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  heroActionBtn: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  heroActionText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   headerTop: {
     flexDirection: "row",
@@ -307,6 +781,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flexShrink: 1,
   },
   logoBadge: {
     paddingHorizontal: 10,
@@ -330,15 +805,24 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   headerBtn: {
-    width: 38,
+    minWidth: 38,
     height: 38,
     borderRadius: 19,
+    paddingHorizontal: 8,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  langText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   notifDot: {
     position: "absolute",
@@ -407,6 +891,118 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, gap: 4 },
   section: { marginBottom: 20 },
+  aboutCard: {
+    gap: 10,
+    padding: 16,
+  },
+  aboutTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  aboutBody: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  aboutHighlights: {
+    gap: 8,
+    marginTop: 2,
+  },
+  aboutHighlightRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  aboutHighlightText: {
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
+  },
+  servicesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  serviceCard: {
+    width: "30%",
+    borderRadius: 14,
+    padding: 12,
+    alignItems: "center",
+    gap: 8,
+    minWidth: 95,
+    flex: 1,
+    maxWidth: "32%",
+  },
+  svcIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  svcTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 15,
+  },
+  newsCard: {
+    marginBottom: 10,
+  },
+  newsTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  newsDate: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  newsTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  newsSummary: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  directoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  directoryCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    width: "48%",
+    gap: 6,
+  },
+  directoryEmoji: {
+    fontSize: 24,
+  },
+  directoryName: {
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  directoryMeta: {
+    fontSize: 12,
+  },
+  sharedInfoCard: {
+    padding: 15,
+    gap: 6,
+  },
+  sharedInfoTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  sharedInfoText: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
   orderCard: { marginBottom: 10 },
   orderTop: {
     flexDirection: "row",
@@ -437,34 +1033,6 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 11,
-  },
-  servicesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  serviceCard: {
-    width: "30%",
-    borderRadius: 14,
-    padding: 12,
-    alignItems: "center",
-    gap: 8,
-    minWidth: 95,
-    flex: 1,
-    maxWidth: "32%",
-  },
-  svcIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  svcTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 15,
   },
   notifCard: { marginBottom: 8 },
   notifRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
@@ -523,19 +1091,34 @@ const styles = StyleSheet.create({
   adminStatLabel: { fontSize: 12, textAlign: "center" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: Platform.OS === "web" ? 84 : 70,
+    paddingRight: 14,
   },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    gap: 12,
-  },
-  modalClose: {
+  modalPanel: {
+    borderRadius: 14,
+    width: 270,
     padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
+    gap: 8,
   },
-  modalCloseText: { fontSize: 15, fontWeight: "600" },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  modalItem: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalItemText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });
