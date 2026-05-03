@@ -17,24 +17,37 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { AppHeader } from "@/components/AppHeader";
 import { SERVICES } from "@/data/mockData";
+import { useI18n } from "@/hooks/useI18n";
+import { translateServiceTitle } from "@/lib/i18n";
+import { useCmsContent } from "@/hooks/useCmsContent";
 
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
-  const svc = SERVICES.find(s => s.id === id);
+  const { language } = useI18n();
+  const { content } = useCmsContent();
+  const svc = (content?.services ?? SERVICES).find(s => s.id === id);
+  const localizedTitle = svc ? translateServiceTitle(language, svc.id, svc.title) : "";
 
   if (!svc) return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      <AppHeader title="Service" showBack />
+      <AppHeader title={language === "my" ? "ဝန်ဆောင်မှု" : "Service"} showBack />
       <View style={styles.notFound}>
-        <Text style={{ color: colors.foreground }}>Service not found</Text>
+        <Text style={{ color: colors.foreground }}>
+          {language === "my" ? "ဝန်ဆောင်မှုမတွေ့ပါ" : "Service not found"}
+        </Text>
       </View>
     </View>
   );
 
   const handleApply = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Application Started", `Your application for "${svc.title}" has been initiated. Our team will contact you shortly.`, [
+    Alert.alert(
+      language === "my" ? "လျှောက်လွှာစတင်ပြီး" : "Application Started",
+      language === "my"
+        ? `"${localizedTitle}" အတွက် လျှောက်လွှာကို စတင်ပြီးပါပြီ။ မကြာမီ ဆက်သွယ်ပေးပါမည်။`
+        : `Your application for "${localizedTitle}" has been initiated. Our team will contact you shortly.`,
+      [
       { text: "OK" },
     ]);
   };
@@ -45,8 +58,18 @@ export default function ServiceDetailScreen() {
     "Academic certificates/transcripts",
     "Passport-size photos (4 copies)",
     "Application form (provided by MKS)",
-    ...(svc.category === "legal" ? ["Sworn statement if required"] : []),
-  ];
+      ...(svc.category === "legal" ? ["Sworn statement if required"] : []),
+    ];
+  const localizedRequirements = language === "my"
+    ? [
+      "မှန်ကန်သော NRC ကတ် (ရှေ့/နောက်)",
+      "အိမ်ထောင်စုစာရင်း (တရားဝင်)",
+      "ပညာရေးအထောက်အထားများ",
+      "Passport ဓာတ်ပုံ (၄ ပုံ)",
+      "MKS မှပေးသော လျှောက်လွှာဖောင်",
+      ...(svc.category === "legal" ? ["လိုအပ်ပါက ကျမ်းကျိန်လွှာ"] : []),
+    ]
+    : requirements;
 
   const process = [
     "Submit your application with required documents",
@@ -55,10 +78,19 @@ export default function ServiceDetailScreen() {
     "Processing and review period",
     "Result notification and document collection",
   ];
+  const localizedProcess = language === "my"
+    ? [
+      "လိုအပ်သောစာရွက်စာတမ်းများဖြင့် လျှောက်လွှာတင်ပါ",
+      "MKS အဖွဲ့မှ စာရွက်စာတမ်းစစ်ဆေးခြင်း (လုပ်ငန်းရက် ၁-၂ ရက်)",
+      "သက်ဆိုင်ရာဌာနသို့ လျှောက်လွှာပို့ခြင်း",
+      "ဆောင်ရွက်မှုနှင့် စိစစ်မှုကာလ",
+      "ရလဒ်အသိပေးခြင်းနှင့် စာရွက်စာတမ်းရယူခြင်း",
+    ]
+    : process;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      <AppHeader title={svc.title} showBack />
+      <AppHeader title={localizedTitle} showBack />
 
       <ScrollView
         style={styles.scroll}
@@ -70,7 +102,7 @@ export default function ServiceDetailScreen() {
           <View style={[styles.svcIcon, { backgroundColor: svc.color + "30" }]}>
             <Feather name={svc.icon as any} size={36} color="#fff" />
           </View>
-          <Text style={styles.heroTitle}>{svc.title}</Text>
+          <Text style={styles.heroTitle}>{localizedTitle}</Text>
           <Text style={styles.heroDesc}>{svc.description}</Text>
           <View style={styles.heroMeta}>
             <View style={styles.heroMetaItem}>
@@ -87,7 +119,11 @@ export default function ServiceDetailScreen() {
         {/* Category */}
         <View style={styles.categoryRow}>
           <Badge
-            label={svc.category.charAt(0).toUpperCase() + svc.category.slice(1) + " Service"}
+            label={svc.category === "education"
+              ? (language === "my" ? "ပညာရေးဝန်ဆောင်မှု" : "Education Service")
+              : svc.category === "legal"
+                ? (language === "my" ? "ဥပဒေဝန်ဆောင်မှု" : "Legal Service")
+                : (language === "my" ? "စာရွက်စာတမ်းဝန်ဆောင်မှု" : "Document Service")}
             variant={svc.category === "education" ? "info" : svc.category === "legal" ? "primary" : "success"}
           />
         </View>
@@ -96,9 +132,9 @@ export default function ServiceDetailScreen() {
         <Card variant="elevated" style={styles.section}>
           <View style={styles.sectionHeader}>
             <Feather name="check-square" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Required Documents</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{language === "my" ? "လိုအပ်သောစာရွက်စာတမ်းများ" : "Required Documents"}</Text>
           </View>
-          {requirements.map((req, i) => (
+          {localizedRequirements.map((req, i) => (
             <View key={i} style={styles.listItem}>
               <View style={[styles.bullet, { backgroundColor: colors.primary }]} />
               <Text style={[styles.listText, { color: colors.foreground }]}>{req}</Text>
@@ -110,9 +146,9 @@ export default function ServiceDetailScreen() {
         <Card variant="elevated" style={styles.section}>
           <View style={styles.sectionHeader}>
             <Feather name="git-branch" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Application Process</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{language === "my" ? "လျှောက်လွှာလုပ်ငန်းစဉ်" : "Application Process"}</Text>
           </View>
-          {process.map((step, i) => (
+          {localizedProcess.map((step, i) => (
             <View key={i} style={styles.processRow}>
               <View style={[styles.processNum, { backgroundColor: colors.primaryLight }]}>
                 <Text style={[styles.processNumText, { color: colors.primary }]}>{i + 1}</Text>
@@ -125,7 +161,7 @@ export default function ServiceDetailScreen() {
         {/* Apply Button */}
         <Button
           onPress={handleApply}
-          label="Apply for This Service"
+          label={language === "my" ? "ဤဝန်ဆောင်မှု လျှောက်မည်" : "Apply for This Service"}
           fullWidth
           size="lg"
           style={styles.applyBtn}
@@ -134,7 +170,7 @@ export default function ServiceDetailScreen() {
         <TouchableOpacity style={styles.chatLink}>
           <Feather name="message-circle" size={16} color={colors.primary} />
           <Text style={[styles.chatLinkText, { color: colors.primary }]}>
-            Have questions? Chat with our team
+            {language === "my" ? "မေးခွန်းရှိပါသလား? အဖွဲ့နှင့် စကားပြောပါ" : "Have questions? Chat with our team"}
           </Text>
         </TouchableOpacity>
       </ScrollView>

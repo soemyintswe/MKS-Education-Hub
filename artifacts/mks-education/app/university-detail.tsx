@@ -17,16 +17,20 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { AppHeader } from "@/components/AppHeader";
 import { UNIVERSITIES } from "@/data/mockData";
+import { useI18n } from "@/hooks/useI18n";
+import { useCmsContent } from "@/hooks/useCmsContent";
 
 export default function UniversityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
-  const uni = UNIVERSITIES.find(u => u.id === id);
+  const { language } = useI18n();
+  const { content } = useCmsContent();
+  const uni = (content?.directory ?? UNIVERSITIES).find(u => u.id === id);
 
   if (!uni) return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      <AppHeader title="University" showBack />
-      <View style={styles.notFound}><Text style={{ color: colors.foreground }}>Not found</Text></View>
+      <AppHeader title={language === "my" ? "တက္ကသိုလ်" : "University"} showBack />
+      <View style={styles.notFound}><Text style={{ color: colors.foreground }}>{language === "my" ? "မတွေ့ပါ" : "Not found"}</Text></View>
     </View>
   );
 
@@ -34,7 +38,13 @@ export default function UniversityDetailScreen() {
 
   const handleApply = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Apply to " + uni.name, "Our team will assist you with your admission application.", [{ text: "OK" }]);
+    Alert.alert(
+      (language === "my" ? "လျှောက်ထားမည် - " : "Apply to ") + uni.name,
+      language === "my"
+        ? "သင့်ဝင်ခွင့်လျှောက်လွှာကို ကျွန်ုပ်တို့အဖွဲ့မှ ကူညီဆောင်ရွက်ပေးပါမည်။"
+        : "Our team will assist you with your admission application.",
+      [{ text: "OK" }]
+    );
   };
 
   return (
@@ -58,7 +68,11 @@ export default function UniversityDetailScreen() {
           </View>
           <View style={styles.badgeRow}>
             <Badge
-              label={uni.type.charAt(0).toUpperCase() + uni.type.slice(1)}
+              label={uni.type === "university"
+                ? (language === "my" ? "တက္ကသိုလ်" : "University")
+                : uni.type === "college"
+                  ? (language === "my" ? "ကောလိပ်" : "College")
+                  : (language === "my" ? "အသက်မွေးဝမ်းကျောင်း" : "Vocational")}
               variant={uni.type === "university" ? "info" : uni.type === "college" ? "primary" : "warning"}
             />
             {uni.ranking && <Badge label={uni.ranking} variant="secondary" />}
@@ -72,7 +86,7 @@ export default function UniversityDetailScreen() {
               <Feather name="calendar" size={16} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Intake Periods</Text>
+              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{language === "my" ? "လက်ခံသည့်ကာလ" : "Intake Periods"}</Text>
               <Text style={[styles.infoValue, { color: colors.foreground }]}>{uni.intake.join(", ")}</Text>
             </View>
           </View>
@@ -82,7 +96,7 @@ export default function UniversityDetailScreen() {
               <Feather name="dollar-sign" size={16} color="#92400e" />
             </View>
             <View>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Tuition Range</Text>
+              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{language === "my" ? "ကျောင်းလခအတိုင်းအတာ" : "Tuition Range"}</Text>
               <Text style={[styles.infoValue, { color: colors.foreground }]}>{uni.tuitionRange}</Text>
             </View>
           </View>
@@ -92,7 +106,7 @@ export default function UniversityDetailScreen() {
         <Card variant="elevated">
           <View style={styles.sectionHeader}>
             <Feather name="check-circle" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Admission Requirements</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{language === "my" ? "ဝင်ခွင့်လိုအပ်ချက်များ" : "Admission Requirements"}</Text>
           </View>
           <Text style={[styles.reqText, { color: colors.foreground }]}>{uni.requirements}</Text>
         </Card>
@@ -101,7 +115,7 @@ export default function UniversityDetailScreen() {
         <Card variant="elevated">
           <View style={styles.sectionHeader}>
             <Feather name="book-open" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Available Programs</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{language === "my" ? "ရရှိနိုင်သောဘာသာရပ်များ" : "Available Programs"}</Text>
           </View>
           <View style={styles.programGrid}>
             {uni.programs.map(p => (
@@ -116,7 +130,7 @@ export default function UniversityDetailScreen() {
         <Card variant="elevated">
           <View style={styles.sectionHeader}>
             <Feather name="award" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Degree Types</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{language === "my" ? "ဘွဲ့အမျိုးအစားများ" : "Degree Types"}</Text>
           </View>
           <View style={styles.programGrid}>
             {uni.degreeTypes.map(d => (
@@ -129,7 +143,7 @@ export default function UniversityDetailScreen() {
 
         <Button
           onPress={handleApply}
-          label="Apply for Admission"
+          label={language === "my" ? "ဝင်ခွင့်လျှောက်မည်" : "Apply for Admission"}
           fullWidth
           size="lg"
           style={{ marginTop: 8 }}

@@ -31,6 +31,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="change-password" options={{ headerShown: false }} />
       <Stack.Screen name="admin-users" options={{ headerShown: false }} />
+      <Stack.Screen name="content-admin" options={{ headerShown: false }} />
       <Stack.Screen name="student-add" options={{ headerShown: false }} />
       <Stack.Screen name="students" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />

@@ -6,58 +6,112 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Image,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { Card } from "@/components/ui/Card";
+import { HeaderNavButtons } from "@/components/HeaderNavButtons";
 import { useApp } from "@/context/AppContext";
+import { useI18n } from "@/hooks/useI18n";
 
 interface MenuItem {
   title: string;
   icon: string;
-  route: string;
+  route?: string;
   color: string;
   badge?: string;
+  action?: "toggle_language";
 }
 
 export default function MoreScreen() {
   const colors = useColors();
+  const { t, language, toggleLanguage } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, activeRole } = useApp();
+  const { user, activeRole, logout, unreadNotificationCount } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  if (!user) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
+        <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: topPad + 12 }]}>
+          <View style={styles.headerNavRow}>
+            <HeaderNavButtons iconColor="#fff" buttonColor="rgba(255,255,255,0.15)" />
+          </View>
+          <Text style={styles.userName}>{t("account")}</Text>
+          <Text style={styles.userEmail}>{t("loginRegisterContinue")}</Text>
+        </View>
+
+        <View style={[styles.loggedOutCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.authBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push("/login")}
+          >
+            <Text style={[styles.authBtnText, { color: colors.primaryForeground }]}>{t("login")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.authBtn, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push("/register")}
+          >
+            <Text style={[styles.authBtnText, { color: colors.secondaryForeground }]}>{t("register")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const menuSections: { title: string; items: MenuItem[] }[] = [
     {
-      title: "My Account",
+      title: t("myAccount"),
       items: [
-        { title: "Documents Hub", icon: "folder", route: "/documents", color: "#3b82f6" },
-        { title: "Financial Records", icon: "credit-card", route: "/financials", color: "#10b981" },
-        { title: "Delivery Tracking", icon: "truck", route: "/delivery", color: "#f59e0b" },
-        { title: "Notifications", icon: "bell", route: "/notifications", color: "#8b5cf6", badge: "2" },
+        { title: t("profile"), icon: "user", route: "/profile", color: "#0d9488" },
+        { title: t("documentsHub"), icon: "folder", route: "/documents", color: "#3b82f6" },
+        { title: t("financialRecords"), icon: "credit-card", route: "/financials", color: "#10b981" },
+        { title: t("deliveryTracking"), icon: "truck", route: "/delivery", color: "#f59e0b" },
+        {
+          title: t("notifications"),
+          icon: "bell",
+          route: "/notifications",
+          color: "#8b5cf6",
+          badge: unreadNotificationCount > 0 ? String(unreadNotificationCount) : undefined,
+        },
+        {
+          title: language === "en" ? t("languageSwitchToMyanmar") : t("languageSwitchToEnglish"),
+          icon: "globe",
+          color: "#0d9488",
+          action: "toggle_language",
+        },
       ],
     },
     {
-      title: "Communication",
+      title: t("communication"),
       items: [
-        { title: "Chat & Messaging", icon: "message-circle", route: "/chat", color: "#0d9488" },
+        { title: t("chatMessaging"), icon: "message-circle", route: "/chat", color: "#0d9488" },
       ],
     },
-    ...(activeRole === "admin" || activeRole === "agent" ? [{
-      title: "Management",
+    ...((activeRole === "admin" || activeRole === "agent") ? [{
+      title: t("management"),
       items: [
-        { title: "Student Management", icon: "users", route: "/admin/students", color: "#3b82f6" },
-        { title: "Agent Management", icon: "briefcase", route: "/admin/agents", color: "#8b5cf6" },
-        { title: "Reports & Analytics", icon: "bar-chart-2", route: "/admin/reports", color: "#f59e0b" },
+        { title: t("students"), icon: "users", route: "/students", color: "#3b82f6" },
+        { title: t("addStudent"), icon: "user-plus", route: "/student-add", color: "#0d9488" },
+        ...(activeRole === "admin" ? [{ title: t("userPermissions"), icon: "users", route: "/admin-users", color: "#3b82f6" }] : []),
+        ...(activeRole === "admin" ? [{ title: language === "my" ? "Content စီမံခန့်ခွဲမှု" : "Content Admin", icon: "edit-3", route: "/content-admin", color: "#0d9488" }] : []),
       ],
     }] : []),
     {
-      title: "Information",
+      title: t("security"),
       items: [
-        { title: "About MKS", icon: "info", route: "/about", color: "#6b7280" },
-        { title: "Contact Us", icon: "phone", route: "/contact", color: "#0d9488" },
+        { title: t("changePassword"), icon: "lock", route: "/change-password", color: "#0d9488" },
+      ],
+    },
+    {
+      title: t("information"),
+      items: [
+        { title: t("aboutMks"), icon: "info", route: "/about", color: "#6b7280" },
+        { title: t("contactUs"), icon: "phone", route: "/contact", color: "#0d9488" },
       ],
     },
   ];
@@ -65,20 +119,27 @@ export default function MoreScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
       <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: topPad + 12 }]}>
+        <View style={styles.headerNavRow}>
+          <HeaderNavButtons iconColor="#fff" buttonColor="rgba(255,255,255,0.15)" />
+        </View>
         <View style={styles.userRow}>
-          <View style={[styles.avatar, { backgroundColor: colors.secondary }]}>
-            <Text style={styles.avatarText}>
-              {user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-            </Text>
-          </View>
+          {user.avatar ? (
+            <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: colors.secondary }]}>
+              <Text style={styles.avatarText}>
+                {user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.userEmail}>{user?.email}</Text>
-            {user?.studentId && (
+            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            {user.studentId && (
               <Text style={styles.userMeta}>ID: {user.studentId}</Text>
             )}
           </View>
-          <TouchableOpacity style={styles.editBtn}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => router.push("/profile")}>
             <Feather name="edit-2" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -91,13 +152,19 @@ export default function MoreScreen() {
       >
         {menuSections.map(section => (
           <View key={section.title} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{section.title}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{section.title}</Text>
             <Card variant="elevated" style={styles.menuCard}>
               {section.items.map((item, i) => (
                 <React.Fragment key={item.route}>
                   <TouchableOpacity
                     style={styles.menuItem}
-                    onPress={() => router.push(item.route as any)}
+                    onPress={() => {
+                      if (item.action === "toggle_language") {
+                        toggleLanguage();
+                        return;
+                      }
+                      if (item.route) router.push(item.route as any);
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.menuIcon, { backgroundColor: item.color + "15" }]}>
@@ -122,9 +189,23 @@ export default function MoreScreen() {
 
         <View style={[styles.versionBadge, { backgroundColor: colors.muted }]}>
           <Text style={[styles.versionText, { color: colors.mutedForeground }]}>
-            MKS Education & Legal v1.0.0
+            {t("appVersion")}
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: colors.destructive }]}
+          onPress={() => {
+            logout()
+              .then(() => router.replace("/login"))
+              .catch(() => {
+                // no-op
+              });
+          }}
+        >
+          <Feather name="log-out" size={17} color="#fff" />
+          <Text style={styles.logoutText}>{t("logout")}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -133,6 +214,7 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 20 },
+  headerNavRow: { marginBottom: 10 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatar: {
     width: 56,
@@ -140,6 +222,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarText: { fontSize: 20, fontWeight: "700", color: "#0f2027" },
   userInfo: { flex: 1 },
@@ -190,4 +277,36 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
   versionText: { fontSize: 12 },
+  logoutBtn: {
+    marginTop: 4,
+    alignSelf: "stretch",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  loggedOutCard: {
+    margin: 16,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+  },
+  authBtn: {
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  authBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });

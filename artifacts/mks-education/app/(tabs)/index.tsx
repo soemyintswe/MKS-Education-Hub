@@ -22,55 +22,13 @@ import { SAMPLE_ORDERS, SERVICES, PAYMENT_RECORDS, UNIVERSITIES } from "@/data/m
 import { SHADOW } from "@/constants/theme";
 import { getScopedOrders, getScopedPayments } from "@/lib/roleScope";
 import { useI18n } from "@/hooks/useI18n";
+import { useCmsContent } from "@/hooks/useCmsContent";
+import { DEFAULT_ABOUT, DEFAULT_NEWS } from "@/lib/cmsContent";
 import {
   translateNotificationMessage,
   translateNotificationTitle,
-  translateServiceTitle,
+  translateServiceTitle
 } from "@/lib/i18n";
-
-type NewsItem = {
-  id: string;
-  titleEn: string;
-  titleMy: string;
-  summaryEn: string;
-  summaryMy: string;
-  date: string;
-  categoryEn: string;
-  categoryMy: string;
-};
-
-const NEWS_ITEMS: NewsItem[] = [
-  {
-    id: "news001",
-    titleEn: "2026 University Admission Window Opened",
-    titleMy: "2026 တက္ကသိုလ်ဝင်ခွင့် လျှောက်လွှာကာလ ဖွင့်လှစ်",
-    summaryEn: "MKS now accepts new admission service requests for local and international universities.",
-    summaryMy: "ပြည်တွင်းနှင့် ပြည်ပ တက္ကသိုလ်ဝင်ခွင့် ဝန်ဆောင်မှုများကို MKS မှ လက်ခံဆောင်ရွက်နေပါသည်။",
-    date: "2026-05-01",
-    categoryEn: "Admissions",
-    categoryMy: "ဝင်ခွင့်",
-  },
-  {
-    id: "news002",
-    titleEn: "Document Legalization Fast-Track Added",
-    titleMy: "စာရွက်စာတမ်းအတည်ပြု Fast-Track ဝန်ဆောင်မှု ထပ်တိုး",
-    summaryEn: "Urgent legalization and notary requests can now be processed with priority handling.",
-    summaryMy: "အရေးပေါ် Notary နှင့် Legalization လုပ်ငန်းများကို အမြန်ဦးစားပေးစနစ်ဖြင့် ဆောင်ရွက်ပေးနေပါသည်။",
-    date: "2026-04-26",
-    categoryEn: "Legal",
-    categoryMy: "ဥပဒေဝန်ဆောင်မှု",
-  },
-  {
-    id: "news003",
-    titleEn: "Agent Onboarding Program Launch",
-    titleMy: "Agent Onboarding Program စတင်ဖွင့်လှစ်",
-    summaryEn: "Partner schools and education agents can now onboard and manage bulk student requests.",
-    summaryMy: "ပူးပေါင်းကျောင်းများနှင့် အေးဂျင့်များအတွက် ကျောင်းသားအစုလိုက်အပြုံလိုက် တင်ပြစနစ်ကို စတင်အသုံးပြုနိုင်ပါပြီ။",
-    date: "2026-04-18",
-    categoryEn: "Partners",
-    categoryMy: "ပူးပေါင်းရေး",
-  },
-];
 
 function textByLang(language: "en" | "my", enText: string, myText: string) {
   return language === "my" ? myText : enText;
@@ -98,6 +56,7 @@ export default function HomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const { content } = useCmsContent();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : 0;
@@ -119,6 +78,7 @@ export default function HomeScreen() {
 
   const roleLabel =
     activeRole === "student" ? t("roleStudent") : activeRole === "agent" ? t("roleAgent") : t("roleAdmin");
+  const canManageContent = activeRole === "admin";
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -147,6 +107,16 @@ export default function HomeScreen() {
           label: textByLang(language, "Students", "ကျောင်းသားများ"),
           onPress: async () => router.push("/students"),
         },
+        ...(canManageContent
+          ? [
+              {
+                key: "content-admin",
+                icon: "edit-3",
+                label: textByLang(language, "Content Admin", "Content စီမံခန့်ခွဲမှု"),
+                onPress: async () => router.push("/content-admin" as any),
+              },
+            ]
+          : []),
         {
           key: "logout",
           icon: "log-out",
@@ -197,47 +167,38 @@ export default function HomeScreen() {
       ];
 
   const renderCommonPublicSections = (showSharedCard: boolean) => {
-    const publicServices = SERVICES.slice(0, 6);
-    const previewSchools = UNIVERSITIES.slice(0, 4);
+    const publicServices = (content?.services ?? SERVICES).slice(0, 6);
+    const previewSchools = (content?.directory ?? UNIVERSITIES).slice(0, 4);
+    const about = content?.about ?? DEFAULT_ABOUT;
+    const highlights =
+      language === "my"
+        ? about?.highlightsMy ?? []
+        : about?.highlightsEn ?? [];
 
     return (
       <>
         <View style={styles.section}>
-          <SectionHeader title={textByLang(language, "About MKS", "MKS အကြောင်း")} icon="info" />
+          <SectionHeader
+            title={textByLang(language, "About MKS", "MKS အကြောင်း")}
+            icon="info"
+            onSeeAll={
+              canManageContent
+                ? () => router.push({ pathname: "/content-admin" as any, params: { section: "about" } })
+                : undefined
+            }
+          />
           <Card variant="elevated" style={styles.aboutCard}>
             <Text style={[styles.aboutTitle, { color: colors.foreground }]}>
-              {textByLang(language, "MKS Education & Legal Service", "MKS ပညာရေးနှင့် ဥပဒေဝန်ဆောင်မှုလုပ်ငန်း")}
+              {language === "my" ? about?.titleMy ?? "" : about?.titleEn ?? ""}
             </Text>
             <Text style={[styles.aboutBody, { color: colors.mutedForeground }]}>
-              {textByLang(
-                language,
-                "We support students, partner agents, and families with admission, academic documentation, legal translation, and service tracking workflows.",
-                "ကျောင်းသားများ၊ ပူးပေါင်းအေးဂျင့်များနှင့် မိဘအုပ်ထိန်းသူများအတွက် ဝင်ခွင့်၊ ပညာရေးစာရွက်စာတမ်း၊ ဥပဒေဘာသာပြန်နှင့် လုပ်ငန်းဆောင်ရွက်မှုအခြေအနေများကို တစ်နေရာတည်းမှာ စီမံနိုင်အောင် ကူညီပေးပါသည်။"
-              )}
+              {language === "my" ? about?.bodyMy ?? "" : about?.bodyEn ?? ""}
             </Text>
             <View style={styles.aboutHighlights}>
-              {[
-                {
-                  icon: "check-circle",
-                  textEn: "University/College admissions and transfers",
-                  textMy: "တက္ကသိုလ်/ကောလိပ် ဝင်ခွင့်နှင့် ပြောင်းရွှေ့ဝန်ဆောင်မှု",
-                },
-                {
-                  icon: "check-circle",
-                  textEn: "Certificate, transcript, and legal document services",
-                  textMy: "အောင်လက်မှတ်၊ transcript နှင့် ဥပဒေစာရွက်စာတမ်း ဝန်ဆောင်မှု",
-                },
-                {
-                  icon: "check-circle",
-                  textEn: "End-to-end order tracking and notifications",
-                  textMy: "လုပ်ငန်းအဆင့်လိုက် tracking နှင့် အသိပေးချက်စနစ်",
-                },
-              ].map(item => (
-                <View key={item.textEn} style={styles.aboutHighlightRow}>
-                  <Feather name={item.icon as any} size={16} color={colors.primary} />
-                  <Text style={[styles.aboutHighlightText, { color: colors.foreground }]}>
-                    {textByLang(language, item.textEn, item.textMy)}
-                  </Text>
+              {highlights.map((item, index) => (
+                <View key={`${item}-${index}`} style={styles.aboutHighlightRow}>
+                  <Feather name="check-circle" size={16} color={colors.primary} />
+                  <Text style={[styles.aboutHighlightText, { color: colors.foreground }]}>{item}</Text>
                 </View>
               ))}
             </View>
@@ -248,7 +209,11 @@ export default function HomeScreen() {
           <SectionHeader
             title={textByLang(language, "Featured Services", "ရရှိနိုင်သည့် ဝန်ဆောင်မှုများ")}
             icon="layers"
-            onSeeAll={() => router.push("/(tabs)/services")}
+            onSeeAll={
+              canManageContent
+                ? () => router.push({ pathname: "/content-admin" as any, params: { section: "services" } })
+                : () => router.push("/(tabs)/services")
+            }
           />
           <View style={styles.servicesGrid}>
             {publicServices.map(svc => (
@@ -270,8 +235,16 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionHeader title={textByLang(language, "Latest News", "နောက်ဆုံးရသတင်းများ")} icon="radio" />
-          {NEWS_ITEMS.map(news => (
+          <SectionHeader
+            title={textByLang(language, "Latest News", "နောက်ဆုံးရသတင်းများ")}
+            icon="radio"
+            onSeeAll={
+              canManageContent
+                ? () => router.push({ pathname: "/content-admin" as any, params: { section: "news" } })
+                : undefined
+            }
+          />
+          {(content?.news ?? DEFAULT_NEWS).map(news => (
             <Card key={news.id} variant="elevated" style={styles.newsCard}>
               <View style={styles.newsTop}>
                 <Badge
@@ -295,7 +268,11 @@ export default function HomeScreen() {
           <SectionHeader
             title={textByLang(language, "Education Directory", "Education Directory")}
             icon="book-open"
-            onSeeAll={() => router.push("/(tabs)/directory")}
+            onSeeAll={
+              canManageContent
+                ? () => router.push({ pathname: "/content-admin" as any, params: { section: "directory" } })
+                : () => router.push("/(tabs)/directory")
+            }
           />
           <View style={styles.directoryGrid}>
             {previewSchools.map(school => (

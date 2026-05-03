@@ -15,7 +15,12 @@ import { useColors } from "@/hooks/useColors";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { HeaderNavButtons } from "@/components/HeaderNavButtons";
 import { UNIVERSITIES, University } from "@/data/mockData";
+import { useI18n } from "@/hooks/useI18n";
+import { useApp } from "@/context/AppContext";
+import { useCmsContent } from "@/hooks/useCmsContent";
+import { CmsDirectory } from "@/lib/cmsContent";
 
 type FilterType = "all" | "university" | "college" | "vocational";
 type CountryFilter = "all" | "Myanmar" | "Abroad";
@@ -23,15 +28,21 @@ type CountryFilter = "all" | "Myanmar" | "Abroad";
 export default function DirectoryScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { language } = useI18n();
+  const { activeRole } = useApp();
+  const { content } = useCmsContent();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const canManageContent = activeRole === "admin";
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [countryFilter, setCountryFilter] = useState<CountryFilter>("all");
 
+  const allUniversities = (content?.directory ?? UNIVERSITIES) as (CmsDirectory | University)[];
+
   const filtered = useMemo(() => {
-    return UNIVERSITIES.filter(u => {
+    return allUniversities.filter(u => {
       const matchSearch =
         !search ||
         u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -44,7 +55,7 @@ export default function DirectoryScreen() {
         (countryFilter === "Abroad" && u.country !== "Myanmar");
       return matchSearch && matchType && matchCountry;
     });
-  }, [search, typeFilter, countryFilter]);
+  }, [allUniversities, search, typeFilter, countryFilter]);
 
   const typeColors: Record<FilterType, string> = {
     all: colors.primary,
@@ -52,18 +63,43 @@ export default function DirectoryScreen() {
     college: "#8b5cf6",
     vocational: "#f59e0b",
   };
+  const typeLabels: Record<FilterType, string> = {
+    all: language === "my" ? "အားလုံး" : "All",
+    university: language === "my" ? "တက္ကသိုလ်" : "University",
+    college: language === "my" ? "ကောလိပ်" : "College",
+    vocational: language === "my" ? "အသက်မွေးဝမ်းကျောင်း" : "Vocational",
+  };
+  const countryLabels: Record<CountryFilter, string> = {
+    all: language === "my" ? "အားလုံး" : "All",
+    Myanmar: language === "my" ? "မြန်မာ" : "Myanmar",
+    Abroad: language === "my" ? "ပြည်ပ" : "Abroad",
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: topPad + 12 }]}>
-        <Text style={styles.headerTitle}>Education Directory</Text>
-        <Text style={styles.headerSub}>{filtered.length} institutions found</Text>
+        <View style={styles.headerNavRow}>
+          <HeaderNavButtons iconColor="#fff" buttonColor="rgba(255,255,255,0.15)" />
+        </View>
+        <Text style={styles.headerTitle}>{language === "my" ? "ပညာရေးလမ်းညွှန်" : "Education Directory"}</Text>
+        <Text style={styles.headerSub}>
+          {language === "my" ? `${filtered.length} ခု တွေ့ရှိသည်` : `${filtered.length} institutions found`}
+        </Text>
+        {canManageContent ? (
+          <TouchableOpacity
+            style={[styles.manageBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]}
+            onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "directory" } })}
+          >
+            <Feather name="edit-3" size={14} color="#fff" />
+            <Text style={styles.manageBtnText}>{language === "my" ? "Directory စီမံရန်" : "Manage Directory"}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search universities, programs..."
+          placeholder={language === "my" ? "တက္ကသိုလ်၊ ဘာသာရပ်များ ရှာဖွေပါ..." : "Search universities, programs..."}
           style={styles.searchBar}
         />
 
@@ -85,7 +121,7 @@ export default function DirectoryScreen() {
                 styles.filterText,
                 { color: typeFilter === f ? typeColors[f] : "#fff" },
               ]}>
-                {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                {typeLabels[f]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -106,7 +142,7 @@ export default function DirectoryScreen() {
                 styles.filterText,
                 { color: countryFilter === f ? "#0f2027" : "#fff" },
               ]}>
-                {f}
+                {countryLabels[f]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -117,7 +153,7 @@ export default function DirectoryScreen() {
         data={filtered}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <UniversityCard university={item} colors={colors} onPress={() =>
+          <UniversityCard university={item} colors={colors} language={language} onPress={() =>
             router.push({ pathname: "/university-detail", params: { id: item.id } })
           } />
         )}
@@ -126,9 +162,11 @@ export default function DirectoryScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="search" size={48} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Results</Text>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              {language === "my" ? "ရလဒ်မတွေ့ပါ" : "No Results"}
+            </Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Try different keywords or filters
+              {language === "my" ? "အခြား keyword သို့မဟုတ် filter ဖြင့် ထပ်ရှာကြည့်ပါ" : "Try different keywords or filters"}
             </Text>
           </View>
         }
@@ -137,9 +175,23 @@ export default function DirectoryScreen() {
   );
 }
 
-function UniversityCard({ university, colors, onPress }: { university: University; colors: any; onPress: () => void }) {
+function UniversityCard({
+  university,
+  colors,
+  onPress,
+  language,
+}: {
+  university: University | CmsDirectory;
+  colors: any;
+  onPress: () => void;
+  language: "en" | "my";
+}) {
   const typeColor = university.type === "university" ? "#3b82f6" : university.type === "college" ? "#8b5cf6" : "#f59e0b";
-  const typeLabel = university.type.charAt(0).toUpperCase() + university.type.slice(1);
+  const typeLabel = university.type === "university"
+    ? (language === "my" ? "တက္ကသိုလ်" : "University")
+    : university.type === "college"
+      ? (language === "my" ? "ကောလိပ်" : "College")
+      : (language === "my" ? "အသက်မွေးဝမ်းကျောင်း" : "Vocational");
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.cardWrapper}>
@@ -211,6 +263,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  headerNavRow: {
+    marginBottom: 10,
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: "700",
@@ -221,6 +276,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "rgba(255,255,255,0.7)",
     marginBottom: 14,
+  },
+  manageBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  manageBtnText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "700",
   },
   searchBar: {
     marginBottom: 12,

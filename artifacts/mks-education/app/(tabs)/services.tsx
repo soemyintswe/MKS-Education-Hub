@@ -13,31 +13,61 @@ import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { HeaderNavButtons } from "@/components/HeaderNavButtons";
 import { SERVICES } from "@/data/mockData";
+import { useI18n } from "@/hooks/useI18n";
+import { translateServiceTitle } from "@/lib/i18n";
+import { useApp } from "@/context/AppContext";
+import { useCmsContent } from "@/hooks/useCmsContent";
+import { CmsService } from "@/lib/cmsContent";
 
 type CategoryFilter = "all" | "education" | "legal" | "document";
 
 export default function ServicesScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { language } = useI18n();
+  const { activeRole } = useApp();
+  const { content } = useCmsContent();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [category, setCategory] = useState<CategoryFilter>("all");
+  const canManageContent = activeRole === "admin";
 
-  const filtered = category === "all" ? SERVICES : SERVICES.filter(s => s.category === category);
+  const allServices = (content?.services ?? SERVICES) as CmsService[];
+  const filtered = category === "all" ? allServices : allServices.filter(s => s.category === category);
 
   const categoryConfig: Record<CategoryFilter, { label: string; icon: string; color: string }> = {
-    all: { label: "All Services", icon: "grid", color: colors.primary },
-    education: { label: "Education", icon: "book-open", color: "#3b82f6" },
-    legal: { label: "Legal", icon: "shield", color: "#8b5cf6" },
-    document: { label: "Documents", icon: "file-text", color: "#10b981" },
+    all: { label: language === "my" ? "ဝန်ဆောင်မှုအားလုံး" : "All Services", icon: "grid", color: colors.primary },
+    education: { label: language === "my" ? "ပညာရေး" : "Education", icon: "book-open", color: "#3b82f6" },
+    legal: { label: language === "my" ? "ဥပဒေ" : "Legal", icon: "shield", color: "#8b5cf6" },
+    document: { label: language === "my" ? "စာရွက်စာတမ်း" : "Documents", icon: "file-text", color: "#10b981" },
+  };
+  const categoryBadgeLabel: Record<"education" | "legal" | "document", string> = {
+    education: language === "my" ? "ပညာရေး" : "Education",
+    legal: language === "my" ? "ဥပဒေ" : "Legal",
+    document: language === "my" ? "စာရွက်စာတမ်း" : "Document",
   };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
       <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: topPad + 12 }]}>
-        <Text style={styles.title}>Our Services</Text>
-        <Text style={styles.subtitle}>Comprehensive education & legal solutions</Text>
+        <View style={styles.headerNavRow}>
+          <HeaderNavButtons iconColor="#fff" buttonColor="rgba(255,255,255,0.15)" />
+        </View>
+        <Text style={styles.title}>{language === "my" ? "ဝန်ဆောင်မှုများ" : "Our Services"}</Text>
+        <Text style={styles.subtitle}>
+          {language === "my" ? "ပညာရေးနှင့် ဥပဒေဆိုင်ရာဝန်ဆောင်မှုများ" : "Comprehensive education & legal solutions"}
+        </Text>
+        {canManageContent ? (
+          <TouchableOpacity
+            style={[styles.manageBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]}
+            onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "services" } })}
+          >
+            <Feather name="edit-3" size={14} color="#fff" />
+            <Text style={styles.manageBtnText}>{language === "my" ? "Service များစီမံရန်" : "Manage Services"}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
           {(Object.entries(categoryConfig) as [CategoryFilter, typeof categoryConfig[CategoryFilter]][]).map(([key, conf]) => (
@@ -66,7 +96,7 @@ export default function ServicesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.count, { color: colors.mutedForeground }]}>
-          {filtered.length} services available
+          {language === "my" ? `${filtered.length} ခု ရရှိနိုင်သည်` : `${filtered.length} services available`}
         </Text>
 
         {filtered.map(svc => (
@@ -83,10 +113,10 @@ export default function ServicesScreen() {
                 <View style={styles.svcInfo}>
                   <View style={styles.svcTitleRow}>
                     <Text style={[styles.svcTitle, { color: colors.foreground }]} numberOfLines={2}>
-                      {svc.title}
+                      {translateServiceTitle(language, svc.id, svc.title)}
                     </Text>
                     <Badge
-                      label={svc.category.charAt(0).toUpperCase() + svc.category.slice(1)}
+                      label={categoryBadgeLabel[svc.category]}
                       variant={svc.category === "education" ? "info" : svc.category === "legal" ? "primary" : "success"}
                       size="sm"
                     />
@@ -121,8 +151,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  headerNavRow: {
+    marginBottom: 10,
+  },
   title: { fontSize: 22, fontWeight: "700", color: "#fff", marginBottom: 2 },
   subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 14 },
+  manageBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  manageBtnText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "700",
+  },
   filterRow: { flexDirection: "row", marginBottom: 4 },
   filterChip: {
     flexDirection: "row",
