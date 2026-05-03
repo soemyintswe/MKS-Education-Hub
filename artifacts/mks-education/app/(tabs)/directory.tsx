@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Platform,
   FlatList,
+  Pressable,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +22,7 @@ import { UNIVERSITIES, University } from "@/data/mockData";
 import { useI18n } from "@/hooks/useI18n";
 import { useApp } from "@/context/AppContext";
 import { useCmsContent } from "@/hooks/useCmsContent";
-import { CmsDirectory } from "@/lib/cmsContent";
+import { CmsDirectory, deleteCmsDirectory } from "@/lib/cmsContent";
 
 type FilterType = "all" | "university" | "college" | "vocational";
 type CountryFilter = "all" | "Myanmar" | "Abroad";
@@ -30,7 +32,7 @@ export default function DirectoryScreen() {
   const router = useRouter();
   const { language } = useI18n();
   const { activeRole } = useApp();
-  const { content } = useCmsContent();
+  const { content, refresh } = useCmsContent();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const canManageContent = activeRole === "admin";
@@ -155,7 +157,23 @@ export default function DirectoryScreen() {
         renderItem={({ item }) => (
           <UniversityCard university={item} colors={colors} language={language} onPress={() =>
             router.push({ pathname: "/university-detail", params: { id: item.id } })
-          } />
+          } canManageContent={canManageContent} onEdit={() => router.push({ pathname: "/content-admin" as any, params: { section: "directory", editId: item.id } })} onDelete={async () => {
+            Alert.alert(
+              language === "my" ? "ဖျက်မည်လား" : "Delete Directory?",
+              language === "my" ? "ဤ Directory item ကို ဖျက်မည်လား?" : "Do you want to delete this directory item?",
+              [
+                { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                {
+                  text: language === "my" ? "ဖျက်မည်" : "Delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    await deleteCmsDirectory(item.id);
+                    await refresh();
+                  },
+                },
+              ]
+            );
+          }} />
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -180,11 +198,17 @@ function UniversityCard({
   colors,
   onPress,
   language,
+  canManageContent,
+  onEdit,
+  onDelete
 }: {
   university: University | CmsDirectory;
   colors: any;
   onPress: () => void;
   language: "en" | "my";
+  canManageContent: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const typeColor = university.type === "university" ? "#3b82f6" : university.type === "college" ? "#8b5cf6" : "#f59e0b";
   const typeLabel = university.type === "university"
@@ -251,6 +275,16 @@ function UniversityCard({
             </Text>
           </View>
           <Feather name="chevron-right" size={16} color={colors.primary} />
+          {canManageContent ? (
+            <View style={styles.rowActions}>
+              <Pressable style={[styles.rowIconBtn, { borderColor: colors.primary }]} onPress={onEdit}>
+                <Feather name="edit-2" size={14} color={colors.primary} />
+              </Pressable>
+              <Pressable style={[styles.rowIconBtn, { borderColor: colors.destructive }]} onPress={onDelete}>
+                <Feather name="trash-2" size={14} color={colors.destructive} />
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </Card>
     </TouchableOpacity>
@@ -362,6 +396,19 @@ const styles = StyleSheet.create({
   },
   uniFooterItem: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
   uniFooterText: { fontSize: 11, flex: 1 },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rowIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   empty: { alignItems: "center", padding: 40, gap: 8 },
   emptyTitle: { fontSize: 17, fontWeight: "600" },
   emptyText: { fontSize: 14, textAlign: "center" },

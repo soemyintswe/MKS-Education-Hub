@@ -95,8 +95,9 @@ export default function ContentAdminScreen() {
   const { language } = useI18n();
   const { user, activeRole } = useApp();
   const { content, refresh } = useCmsContent();
-  const params = useLocalSearchParams<{ section?: string }>();
+  const params = useLocalSearchParams<{ section?: string; editId?: string }>();
   const initialSection = (params.section as SectionKey) || "about";
+  const editId = typeof params.editId === "string" ? params.editId : "";
   const [section, setSection] = useState<SectionKey>(initialSection);
   const [saving, setSaving] = useState(false);
 
@@ -128,6 +129,67 @@ export default function ContentAdminScreen() {
     setAboutHighlightsEnCsv(arrayToCsv(content.about.highlightsEn));
     setAboutHighlightsMyCsv(arrayToCsv(content.about.highlightsMy));
   }, [content]);
+
+  useEffect(() => {
+    if (!content || !editId) return;
+    if (section === "news") {
+      const item = (content.news ?? []).find(news => news.id === editId);
+      if (!item) return;
+      setEditingNewsId(item.id);
+      setNewsForm({
+        titleEn: item.titleEn,
+        titleMy: item.titleMy,
+        summaryEn: item.summaryEn,
+        summaryMy: item.summaryMy,
+        categoryEn: item.categoryEn,
+        categoryMy: item.categoryMy,
+        date: item.date
+      });
+      return;
+    }
+    if (section === "services") {
+      const item = (content.services ?? []).find(service => service.id === editId);
+      if (!item) return;
+      setEditingServiceId(item.id);
+      setServiceForm({
+        title: item.title,
+        titleEn: item.titleEn || item.title,
+        titleMy: item.titleMy || "",
+        icon: item.icon,
+        description: item.description,
+        descriptionEn: item.descriptionEn || item.description,
+        descriptionMy: item.descriptionMy || "",
+        category: item.category,
+        price: item.price,
+        duration: item.duration,
+        color: item.color
+      });
+      return;
+    }
+    if (section === "directory") {
+      const item = (content.directory ?? []).find(directory => directory.id === editId);
+      if (!item) return;
+      setEditingDirectoryId(item.id);
+      setDirectoryForm({
+        name: item.name,
+        nameEn: item.nameEn || item.name,
+        nameMy: item.nameMy || "",
+        type: item.type,
+        location: item.location,
+        country: item.country,
+        programs: item.programs,
+        requirements: item.requirements,
+        degreeTypes: item.degreeTypes,
+        tuitionRange: item.tuitionRange,
+        ranking: item.ranking || "",
+        intake: item.intake,
+        logo: item.logo || "🏫"
+      });
+      setDirectoryProgramsCsv(arrayToCsv(item.programs));
+      setDirectoryDegreesCsv(arrayToCsv(item.degreeTypes));
+      setDirectoryIntakeCsv(arrayToCsv(item.intake));
+    }
+  }, [content, editId, section]);
 
   const newsList = content?.news ?? DEFAULT_NEWS;
   const serviceList = content?.services ?? DEFAULT_SERVICES;
@@ -598,4 +660,3 @@ const styles = StyleSheet.create({
   smallBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   smallText: { fontSize: 12, fontWeight: "700" }
 });
-

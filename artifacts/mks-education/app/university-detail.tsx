@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Card } from "@/components/ui/Card";
@@ -19,11 +19,15 @@ import { AppHeader } from "@/components/AppHeader";
 import { UNIVERSITIES } from "@/data/mockData";
 import { useI18n } from "@/hooks/useI18n";
 import { useCmsContent } from "@/hooks/useCmsContent";
+import { useApp } from "@/context/AppContext";
+import { deleteCmsDirectory } from "@/lib/cmsContent";
 
 export default function UniversityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const { language } = useI18n();
+  const router = useRouter();
+  const { activeRole } = useApp();
   const { content } = useCmsContent();
   const uni = (content?.directory ?? UNIVERSITIES).find(u => u.id === id);
 
@@ -49,7 +53,42 @@ export default function UniversityDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      <AppHeader title={uni.name} showBack />
+      <AppHeader
+        title={uni.name}
+        showBack
+        rightElement={activeRole === "admin" ? (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.iconBtn, { borderColor: "rgba(255,255,255,0.45)" }]}
+              onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "directory", editId: uni.id } })}
+            >
+              <Feather name="edit-2" size={15} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconBtn, { borderColor: "rgba(255,255,255,0.45)" }]}
+              onPress={() => {
+                Alert.alert(
+                  language === "my" ? "ဖျက်မည်လား" : "Delete School?",
+                  language === "my" ? "ဤ Directory item ကို ဖျက်မည်လား?" : "Do you want to delete this directory item?",
+                  [
+                    { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                    {
+                      text: language === "my" ? "ဖျက်မည်" : "Delete",
+                      style: "destructive",
+                      onPress: async () => {
+                        await deleteCmsDirectory(uni.id);
+                        router.replace("/directory");
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Feather name="trash-2" size={15} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ) : undefined}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -191,4 +230,14 @@ const styles = StyleSheet.create({
   programText: { fontSize: 13, fontWeight: "600" },
   degreeTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   degreeText: { fontSize: 13, fontWeight: "600" },
+  actionsRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
 });

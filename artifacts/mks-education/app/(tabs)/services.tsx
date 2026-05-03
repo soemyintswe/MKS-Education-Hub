@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Alert,
+  Pressable,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,7 +21,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { translateServiceTitle } from "@/lib/i18n";
 import { useApp } from "@/context/AppContext";
 import { useCmsContent } from "@/hooks/useCmsContent";
-import { CmsService } from "@/lib/cmsContent";
+import { CmsService, deleteCmsService } from "@/lib/cmsContent";
 
 type CategoryFilter = "all" | "education" | "legal" | "document";
 
@@ -28,7 +30,7 @@ export default function ServicesScreen() {
   const router = useRouter();
   const { language } = useI18n();
   const { activeRole } = useApp();
-  const { content } = useCmsContent();
+  const { content, refresh } = useCmsContent();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [category, setCategory] = useState<CategoryFilter>("all");
@@ -135,7 +137,41 @@ export default function ServicesScreen() {
                     </View>
                   </View>
                 </View>
-                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                <View style={styles.rowActions}>
+                  {canManageContent ? (
+                    <>
+                      <Pressable
+                        style={[styles.rowIconBtn, { borderColor: colors.primary }]}
+                        onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "services", editId: svc.id } })}
+                      >
+                        <Feather name="edit-2" size={14} color={colors.primary} />
+                      </Pressable>
+                      <Pressable
+                        style={[styles.rowIconBtn, { borderColor: colors.destructive }]}
+                        onPress={() => {
+                          Alert.alert(
+                            language === "my" ? "ဖျက်မည်လား" : "Delete Service?",
+                            language === "my" ? "ဤ Service ကို ဖျက်မည်လား?" : "Do you want to delete this service?",
+                            [
+                              { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                              {
+                                text: language === "my" ? "ဖျက်မည်" : "Delete",
+                                style: "destructive",
+                                onPress: async () => {
+                                  await deleteCmsService(svc.id);
+                                  await refresh();
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Feather name="trash-2" size={14} color={colors.destructive} />
+                      </Pressable>
+                    </>
+                  ) : null}
+                  <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                </View>
               </View>
             </Card>
           </TouchableOpacity>
@@ -208,4 +244,17 @@ const styles = StyleSheet.create({
   svcMeta: { flexDirection: "row", gap: 14 },
   svcMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   svcMetaText: { fontSize: 12 },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rowIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

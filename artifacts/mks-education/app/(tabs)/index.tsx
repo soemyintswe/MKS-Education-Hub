@@ -23,7 +23,7 @@ import { SHADOW } from "@/constants/theme";
 import { getScopedOrders, getScopedPayments } from "@/lib/roleScope";
 import { useI18n } from "@/hooks/useI18n";
 import { useCmsContent } from "@/hooks/useCmsContent";
-import { DEFAULT_ABOUT, DEFAULT_NEWS } from "@/lib/cmsContent";
+import { DEFAULT_ABOUT, DEFAULT_NEWS, deleteCmsAbout, deleteCmsDirectory, deleteCmsNews, deleteCmsService } from "@/lib/cmsContent";
 import {
   translateNotificationMessage,
   translateNotificationTitle,
@@ -56,7 +56,7 @@ export default function HomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { content } = useCmsContent();
+  const { content, refresh } = useCmsContent();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : 0;
@@ -188,9 +188,45 @@ export default function HomeScreen() {
             }
           />
           <Card variant="elevated" style={styles.aboutCard}>
-            <Text style={[styles.aboutTitle, { color: colors.foreground }]}>
-              {language === "my" ? about?.titleMy ?? "" : about?.titleEn ?? ""}
-            </Text>
+            <View style={styles.aboutTitleRow}>
+              <Text style={[styles.aboutTitle, { color: colors.foreground }]}>
+                {language === "my" ? about?.titleMy ?? "" : about?.titleEn ?? ""}
+              </Text>
+              {canManageContent ? (
+                <View style={styles.inlineActions}>
+                  <Pressable
+                    style={[styles.inlineActionBtn, { borderColor: colors.primary }]}
+                    onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "about" } })}
+                  >
+                    <Feather name="edit-2" size={13} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.inlineActionBtn, { borderColor: colors.destructive }]}
+                    onPress={() => {
+                      Alert.alert(
+                        language === "my" ? "About ကို reset လုပ်မည်လား" : "Reset About Content?",
+                        language === "my"
+                          ? "About content ကို default ပြန်ထားမည်လား?"
+                          : "Do you want to reset About content to default?",
+                        [
+                          { text: language === "my" ? "မလုပ်တော့" : "Cancel", style: "cancel" },
+                          {
+                            text: language === "my" ? "ပြန်ချိန်မည်" : "Reset",
+                            style: "destructive",
+                            onPress: async () => {
+                              await deleteCmsAbout();
+                              await refresh();
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Feather name="trash-2" size={13} color={colors.destructive} />
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
             <Text style={[styles.aboutBody, { color: colors.mutedForeground }]}>
               {language === "my" ? about?.bodyMy ?? "" : about?.bodyEn ?? ""}
             </Text>
@@ -229,6 +265,42 @@ export default function HomeScreen() {
                 <Text style={[styles.svcTitle, { color: colors.foreground }]} numberOfLines={2}>
                   {translateServiceTitle(language, svc.id, svc.title)}
                 </Text>
+                {canManageContent ? (
+                  <View style={styles.cardActionsRow}>
+                    <Pressable
+                      style={[styles.inlineActionBtn, { borderColor: colors.primary }]}
+                      onPress={event => {
+                        event.stopPropagation();
+                        router.push({ pathname: "/content-admin" as any, params: { section: "services", editId: svc.id } });
+                      }}
+                    >
+                      <Feather name="edit-2" size={12} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      style={[styles.inlineActionBtn, { borderColor: colors.destructive }]}
+                      onPress={event => {
+                        event.stopPropagation();
+                        Alert.alert(
+                          language === "my" ? "ဖျက်မည်လား" : "Delete Service?",
+                          language === "my" ? "ဤ Service ကို ဖျက်မည်လား?" : "Do you want to delete this service?",
+                          [
+                            { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                            {
+                              text: language === "my" ? "ဖျက်မည်" : "Delete",
+                              style: "destructive",
+                              onPress: async () => {
+                                await deleteCmsService(svc.id);
+                                await refresh();
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Feather name="trash-2" size={12} color={colors.destructive} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             ))}
           </View>
@@ -252,7 +324,41 @@ export default function HomeScreen() {
                   variant="info"
                   size="sm"
                 />
-                <Text style={[styles.newsDate, { color: colors.mutedForeground }]}>{news.date}</Text>
+                <View style={styles.newsTopRight}>
+                  <Text style={[styles.newsDate, { color: colors.mutedForeground }]}>{news.date}</Text>
+                  {canManageContent ? (
+                    <View style={styles.newsActions}>
+                      <Pressable
+                        style={[styles.newsActionBtn, { borderColor: colors.primary }]}
+                        onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "news", editId: news.id } })}
+                      >
+                        <Feather name="edit-2" size={13} color={colors.primary} />
+                      </Pressable>
+                      <Pressable
+                        style={[styles.newsActionBtn, { borderColor: colors.destructive }]}
+                        onPress={() => {
+                          Alert.alert(
+                            language === "my" ? "ဖျက်မည်လား" : "Delete News?",
+                            language === "my" ? "ဤ News item ကို ဖျက်မည်လား?" : "Do you want to delete this news item?",
+                            [
+                              { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                              {
+                                text: language === "my" ? "ဖျက်မည်" : "Delete",
+                                style: "destructive",
+                                onPress: async () => {
+                                  await deleteCmsNews(news.id);
+                                  await refresh();
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Feather name="trash-2" size={13} color={colors.destructive} />
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
               </View>
               <Text style={[styles.newsTitle, { color: colors.foreground }]}>
                 {language === "my" ? news.titleMy : news.titleEn}
@@ -289,6 +395,42 @@ export default function HomeScreen() {
                 <Text style={[styles.directoryMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
                   {school.location}, {school.country}
                 </Text>
+                {canManageContent ? (
+                  <View style={styles.cardActionsRow}>
+                    <Pressable
+                      style={[styles.inlineActionBtn, { borderColor: colors.primary }]}
+                      onPress={event => {
+                        event.stopPropagation();
+                        router.push({ pathname: "/content-admin" as any, params: { section: "directory", editId: school.id } });
+                      }}
+                    >
+                      <Feather name="edit-2" size={12} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      style={[styles.inlineActionBtn, { borderColor: colors.destructive }]}
+                      onPress={event => {
+                        event.stopPropagation();
+                        Alert.alert(
+                          language === "my" ? "ဖျက်မည်လား" : "Delete School?",
+                          language === "my" ? "ဤ Directory item ကို ဖျက်မည်လား?" : "Do you want to delete this directory item?",
+                          [
+                            { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                            {
+                              text: language === "my" ? "ဖျက်မည်" : "Delete",
+                              style: "destructive",
+                              onPress: async () => {
+                                await deleteCmsDirectory(school.id);
+                                await refresh();
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Feather name="trash-2" size={12} color={colors.destructive} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             ))}
           </View>
@@ -872,9 +1014,16 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 16,
   },
+  aboutTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   aboutTitle: {
     fontSize: 17,
     fontWeight: "700",
+    flex: 1,
   },
   aboutBody: {
     fontSize: 13,
@@ -922,6 +1071,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 15,
   },
+  inlineActions: {
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "center",
+  },
+  inlineActionBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.65)",
+  },
+  cardActionsRow: {
+    width: "100%",
+    marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
   newsCard: {
     marginBottom: 10,
   },
@@ -930,6 +1100,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
+  },
+  newsTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  newsActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  newsActionBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   newsDate: {
     fontSize: 12,

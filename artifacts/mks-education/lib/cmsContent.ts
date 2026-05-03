@@ -1,4 +1,14 @@
-import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  setDoc
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { SERVICES, UNIVERSITIES } from "@/data/mockData";
 
@@ -239,3 +249,69 @@ export async function loadCmsContent(): Promise<CmsBundle> {
   return { about, news, services, directory };
 }
 
+async function hasAnyDoc(collectionName: string): Promise<boolean> {
+  const snapshot = await getDocs(query(collection(db, collectionName), limit(1)));
+  return !snapshot.empty;
+}
+
+export async function ensureCmsAboutSeed() {
+  const aboutSnap = await getDoc(doc(db, "cms_about", "main"));
+  if (aboutSnap.exists()) return;
+  await setDoc(doc(db, "cms_about", "main"), { ...DEFAULT_ABOUT, seeded: true }, { merge: true });
+}
+
+export async function ensureCmsNewsSeed() {
+  if (await hasAnyDoc("cms_news")) return;
+  await Promise.all(
+    DEFAULT_NEWS.map(item =>
+      setDoc(doc(db, "cms_news", item.id), {
+        ...item,
+        seeded: true
+      })
+    )
+  );
+}
+
+export async function ensureCmsServicesSeed() {
+  if (await hasAnyDoc("cms_services")) return;
+  await Promise.all(
+    DEFAULT_SERVICES.map(item =>
+      setDoc(doc(db, "cms_services", item.id), {
+        ...item,
+        seeded: true
+      })
+    )
+  );
+}
+
+export async function ensureCmsDirectorySeed() {
+  if (await hasAnyDoc("cms_directory")) return;
+  await Promise.all(
+    DEFAULT_DIRECTORY.map(item =>
+      setDoc(doc(db, "cms_directory", item.id), {
+        ...item,
+        seeded: true
+      })
+    )
+  );
+}
+
+export async function deleteCmsNews(id: string) {
+  await ensureCmsNewsSeed();
+  await deleteDoc(doc(db, "cms_news", id));
+}
+
+export async function deleteCmsAbout() {
+  await ensureCmsAboutSeed();
+  await deleteDoc(doc(db, "cms_about", "main"));
+}
+
+export async function deleteCmsService(id: string) {
+  await ensureCmsServicesSeed();
+  await deleteDoc(doc(db, "cms_services", id));
+}
+
+export async function deleteCmsDirectory(id: string) {
+  await ensureCmsDirectorySeed();
+  await deleteDoc(doc(db, "cms_directory", id));
+}

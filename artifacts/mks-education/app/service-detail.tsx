@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Card } from "@/components/ui/Card";
@@ -20,11 +20,15 @@ import { SERVICES } from "@/data/mockData";
 import { useI18n } from "@/hooks/useI18n";
 import { translateServiceTitle } from "@/lib/i18n";
 import { useCmsContent } from "@/hooks/useCmsContent";
+import { useApp } from "@/context/AppContext";
+import { deleteCmsService } from "@/lib/cmsContent";
 
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const { language } = useI18n();
+  const router = useRouter();
+  const { activeRole } = useApp();
   const { content } = useCmsContent();
   const svc = (content?.services ?? SERVICES).find(s => s.id === id);
   const localizedTitle = svc ? translateServiceTitle(language, svc.id, svc.title) : "";
@@ -90,7 +94,42 @@ export default function ServiceDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surfaceSecondary }]}>
-      <AppHeader title={localizedTitle} showBack />
+      <AppHeader
+        title={localizedTitle}
+        showBack
+        rightElement={activeRole === "admin" ? (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.iconBtn, { borderColor: "rgba(255,255,255,0.45)" }]}
+              onPress={() => router.push({ pathname: "/content-admin" as any, params: { section: "services", editId: svc.id } })}
+            >
+              <Feather name="edit-2" size={15} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconBtn, { borderColor: "rgba(255,255,255,0.45)" }]}
+              onPress={() => {
+                Alert.alert(
+                  language === "my" ? "ဖျက်မည်လား" : "Delete Service?",
+                  language === "my" ? "ဤ Service ကို ဖျက်မည်လား?" : "Do you want to delete this service?",
+                  [
+                    { text: language === "my" ? "မဖျက်တော့" : "Cancel", style: "cancel" },
+                    {
+                      text: language === "my" ? "ဖျက်မည်" : "Delete",
+                      style: "destructive",
+                      onPress: async () => {
+                        await deleteCmsService(svc.id);
+                        router.replace("/services");
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Feather name="trash-2" size={15} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ) : undefined}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -224,4 +263,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chatLinkText: { fontSize: 14, fontWeight: "600" },
+  actionsRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
 });
